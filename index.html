@@ -560,7 +560,7 @@ BIND Y MARK TeleOp Marker</textarea>
           <div class="teleop-grid">
             <div>
               <h3>Live Drive — WASD</h3>
-              <p class="hint" style="margin-bottom:10px">W/S = forward/back, A/D = strafe, Q/E = turn. Click Driver Mode at the top for keyboard control.</p>
+              <p class="hint" style="margin-bottom:10px">W/S = forward/back, A/D = strafe, Q/E = turn. Robot-centric uses the robot’s heading. Field-centric keeps WASD aligned to the field.</p>
               <div class="driver-pad">
                 <div class="blank"></div><button class="button small secondary" data-drive="forward">W</button><div class="blank"></div>
                 <button class="button small secondary" data-drive="left">A</button><button class="button small secondary" data-drive="back">S</button><button class="button small secondary" data-drive="right">D</button>
@@ -574,6 +574,7 @@ BIND Y MARK TeleOp Marker</textarea>
           </div>
 
           <div class="input-row" style="margin-top:12px"><div><label for="teleopSpeedScale">TeleOp speed scale</label><small>Limits driver speed.</small></div><input id="teleopSpeedScale" type="number" value="0.75" min="0.1" max="1" step="0.05"></div>
+          <div class="input-row" style="margin-top:12px"><div><label for="controlMode">Drive control mode</label><small>Robot-centric follows robot heading. Field-centric keeps WASD aligned to the field.</small></div><select id="controlMode"><option value="robot">Robot-centric</option><option value="field">Field-centric</option></select></div>
           <div class="stats-grid"><div class="stat"><strong id="teleopTimeStat">0.00s</strong><span>TeleOp time</span></div><div class="stat"><strong id="teleopActionStat">0</strong><span>Actions</span></div></div>
         </section>
 
@@ -655,7 +656,8 @@ BIND Y MARK TeleOp Marker</textarea>
       gearRatio: el("gearRatio"),
       robotWeight: el("robotWeight"),
       batteryVoltage: el("batteryVoltage"),
-      teleopSpeedScale: el("teleopSpeedScale")
+      teleopSpeedScale: el("teleopSpeedScale"),
+      controlMode: el("controlMode")
     };
 
     let pose = { x: 18, y: 118, heading: 0 };
@@ -746,25 +748,38 @@ BIND Y MARK TeleOp Marker</textarea>
       return normalizeAngle(Math.atan2(dx, -dy) / DEG_TO_RAD);
     }
 
-    function animateRobotTo(targetPose, durationMs) {
+    function animateRobotTo(targetPose, durationMs, trail = null) {
       return new Promise(resolve => {
         const start = { ...pose };
         const duration = Math.max(90, durationMs);
         const started = performance.now();
+        let lastTrailTime = 0;
         setRobotTransition(false);
 
         function frame(now) {
           const t = clamp((now - started) / duration, 0, 1);
           const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-          setRobotPose({
+          const currentPose = {
             x: lerp(start.x, targetPose.x, eased),
             y: lerp(start.y, targetPose.y, eased),
             heading: shortestAngleLerp(start.heading, targetPose.heading ?? start.heading, eased)
-          });
+          };
+
+          setRobotPose(currentPose);
+
+          if (trail && now - lastTrailTime > 24) {
+            trail.push({ x: currentPose.x, y: currentPose.y });
+            drawPath(trail);
+            lastTrailTime = now;
+          }
 
           if (t < 1) requestAnimationFrame(frame);
           else {
             setRobotPose(targetPose);
+            if (trail) {
+              trail.push({ x: targetPose.x, y: targetPose.y });
+              drawPath(trail);
+            }
             setRobotTransition(true);
             resolve();
           }
@@ -822,6 +837,7 @@ BIND Y MARK TeleOp Marker</textarea>
       let sim = { ...startPose };
       let points = [{ x: sim.x, y: sim.y }];
       let events = [];
+      let animationSegments = [];
       let totalDistance = 0, totalTurn = 0, totalTime = 0, markers = 0, shots = 0, boundaryHits = 0, mechanismBattery = 0, strafePenalty = 0;
 
       for (const item of parsed.commands) {
@@ -849,9 +865,12 @@ BIND Y MARK TeleOp Marker</textarea>
         if (cmd === "TURN") {
           const degrees = Number(a[0]) || 0;
           const power = clamp(Number(a[1]) || 0.5, 0.1, 1);
+          const from = { ...sim };
+          const turnTime = Math.abs(degrees) / (145 * power);
           sim.heading = normalizeAngle(sim.heading + degrees);
           totalTurn += Math.abs(degrees);
-          totalTime += Math.abs(degrees) / (145 * power);
+          totalTime += turnTime;
+          animationSegments.push({ type: "turn", from, to: { ...sim }, duration: turnTime });
           continue;
         }
 
@@ -898,6 +917,7 @@ BIND Y MARK TeleOp Marker</textarea>
           }
 
           const rad = angle * DEG_TO_RAD;
+          const from = { ...sim };
           const nx = sim.x + Math.sin(rad) * inches;
           const ny = sim.y - Math.cos(rad) * inches;
           const cx = clamp(nx, 0, FIELD_SIZE);
@@ -905,9 +925,17 @@ BIND Y MARK TeleOp Marker</textarea>
           if (nx !== cx || ny !== cy) boundaryHits++;
           sim.x = cx;
           sim.y = cy;
+          const moveTime = Math.abs(inches) / Math.max(1, c.maxSpeed * power * speedFactor);
           totalDistance += Math.abs(inches);
-          totalTime += Math.abs(inches) / Math.max(1, c.maxSpeed * power * speedFactor);
+          totalTime += moveTime;
           points.push({ x: sim.x, y: sim.y });
+          animationSegments.push({
+            type: "move",
+            from,
+            to: { ...sim, heading: estimateHeadingBetween(from, sim, from.heading) },
+            finalHeading: sim.heading,
+            duration: moveTime
+          });
         }
       }
 
@@ -918,7 +946,7 @@ BIND Y MARK TeleOp Marker</textarea>
       const efficiency = clamp(100 - waste * 28 - clamp(totalTime / 30, 0, 1) * 22 - boundaryHits * 10 - strafePenalty - batteryUse * 0.22 + markers * 2, 0, 100);
       const score = Math.round(efficiency + markers * 8 + shots * 6 - boundaryHits * 15 - Math.max(0, totalTime - 30));
 
-      return { config: c, points, events, finalPose: sim, totalDistance, totalTurn, totalTime, markers, shots, boundaryHits, wheelRotations, batteryUse, efficiency, score };
+      return { config: c, points, events, animationSegments, finalPose: sim, totalDistance, totalTurn, totalTime, markers, shots, boundaryHits, wheelRotations, batteryUse, efficiency, score };
     }
 
     function updateStats(result) {
@@ -958,15 +986,19 @@ BIND Y MARK TeleOp Marker</textarea>
 
       isRunning = true;
       robot.classList.add("running");
-      for (let i = 1; i < result.points.length; i++) {
-        const previous = result.points[i - 1];
-        const point = result.points[i];
-        const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
-        const segmentHeading = estimateHeadingBetween(previous, point, pose.heading);
-        const duration = (distance / Math.max(1, result.config.maxSpeed * 0.75)) * 1000;
-        await animateRobotTo({ x: point.x, y: point.y, heading: segmentHeading }, duration);
+      const liveTrail = [{ x: startPose.x, y: startPose.y }];
+      drawPath(liveTrail);
+
+      for (const segment of result.animationSegments) {
+        if (segment.type === "move") {
+          await animateRobotTo(segment.to, segment.duration * 1000, liveTrail);
+          await animateRobotTo({ ...segment.to, heading: segment.finalHeading }, 120, liveTrail);
+        } else if (segment.type === "turn") {
+          await animateRobotTo(segment.to, segment.duration * 1000, liveTrail);
+        }
       }
-      await animateRobotTo(result.finalPose, 260);
+
+      await animateRobotTo(result.finalPose, 160, liveTrail);
       robot.classList.remove("running");
       isRunning = false;
     }
@@ -1046,8 +1078,10 @@ BIND Y MARK TeleOp Marker</textarea>
       const scale = clamp(Number(inputs.teleopSpeedScale.value) || 0.75, 0.1, 1);
       const p = clamp(power ?? scale, 0.1, 1);
       const distance = c.maxSpeed * p * seconds;
-      const fRad = pose.heading * DEG_TO_RAD;
-      const sRad = (pose.heading + 90) * DEG_TO_RAD;
+      const controlMode = inputs.controlMode.value;
+      const movementHeading = controlMode === "field" ? 0 : pose.heading;
+      const fRad = movementHeading * DEG_TO_RAD;
+      const sRad = (movementHeading + 90) * DEG_TO_RAD;
       const dx = Math.sin(fRad) * forward * distance + Math.sin(sRad) * strafe * distance;
       const dy = -Math.cos(fRad) * forward * distance - Math.cos(sRad) * strafe * distance;
       const next = { x: pose.x + dx, y: pose.y + dy, heading: normalizeAngle(pose.heading + turn * 120 * seconds * p) };
@@ -1057,7 +1091,7 @@ BIND Y MARK TeleOp Marker</textarea>
       setRobotPose(next);
       teleopTime += seconds;
       el("teleopTimeStat").textContent = round(teleopTime, 2) + "s";
-      log("TeleOp drive f=" + forward + " s=" + strafe + " turn=" + turn);
+      log("TeleOp drive [" + inputs.controlMode.value + "-centric]: f=" + forward + " s=" + strafe + " turn=" + turn);
     }
 
     function runTeleopScript() {
