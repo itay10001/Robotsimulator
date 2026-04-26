@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RouteForge DECODE Physics</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="toast" class="toast">Ready</div>
+  <header class="topbar">
+    <div class="brand"><div class="brand-icon">RF</div><div><strong>RouteForge DECODE</strong><span>Canvas physics simulator</span></div></div>
+    <div class="top-actions">
+      <button id="themeButton" class="button secondary small">Light Mode</button>
+      <button id="driverModeButton" class="button secondary small">Driver Mode: On</button>
+      <button id="runAutoTopButton" class="button small">Run Auto</button>
+      <button id="resetAllButton" class="button danger small">Reset</button>
+    </div>
+  </header>
+  <main class="layout">
+    <section class="field-panel">
+      <div class="panel-header">
+        <div><div class="label">12 ft × 12 ft field</div><h1>DECODE Physics Field</h1></div>
+        <div class="actions no-margin">
+          <button id="runAutoButton" class="button small">Run Auto</button>
+          <button id="pauseButton" class="button secondary small">Pause</button>
+          <button id="clearTrailButton" class="button secondary small">Clear Trail</button>
+          <button id="openGateButton" class="button secondary small">Push Gate</button>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas id="fieldCanvas" width="960" height="960"></canvas></div>
+      <div class="legend"><span><i class="dot purple"></i>Purple artifact</span><span><i class="dot green"></i>Green artifact</span><span><i class="dot blue"></i>Blue GOAL/CLASSIFIER</span><span><i class="dot red"></i>Red GOAL/CLASSIFIER</span><span><i class="line"></i>Robot trail</span></div>
+      <div class="warning">Field positions are approximate until copied from official CAD. The field is rendered on canvas; DOM is used only for UI.</div>
+    </section>
+    <aside class="sidebar">
+      <section class="panel"><div class="label">Driver</div><h2>Continuous TeleOp</h2><p class="hint">Hold W/A/S/D/Q/E or use a controller. Left stick drives, right stick turns. Space / right trigger intake. This feeds a fixed-timestep physics loop; it does not teleport the robot.</p>
+        <p class="hint" id="gamepadStatus">Controller: not connected</p>
+        <div class="driver-pad"><div></div><button data-drive="forward" class="pad-button">W</button><div></div><button data-drive="left" class="pad-button">A</button><button data-drive="back" class="pad-button">S</button><button data-drive="right" class="pad-button">D</button><button data-drive="turnLeft" class="pad-button">Q</button><button id="intakeButton" class="pad-button intake">INTAKE</button><button data-drive="turnRight" class="pad-button">E</button></div>
+        <div class="actions"><button id="shootBlueButton" class="button secondary small">Shoot Blue</button><button id="shootRedButton" class="button secondary small">Shoot Red</button><button id="scoreDepotButton" class="button secondary small">Depot Score</button></div>
+        <div class="input-row"><div><label for="controlMode">Control mode</label><small>Field-centric keeps W aimed up-field.</small></div><select id="controlMode"><option value="field">Field-centric</option><option value="robot">Robot-centric</option></select></div><div class="input-row"><div><label for="driveSpeedScale">Drive speed scale</label><small>Driver top speed multiplier.</small></div><input id="driveSpeedScale" type="number" value="1.45" min="0.25" max="3" step="0.05"></div><div class="input-row"><div><label for="turnSpeedScale">Turn speed scale</label><small>Driver turn sensitivity.</small></div><input id="turnSpeedScale" type="number" value="1.25" min="0.25" max="3" step="0.05"></div>
+      </section>
+      <section class="panel"><div class="label">Robot Physics</div><h2>Parameters</h2>
+        <div class="input-row"><div><label for="robotMassKg">Robot mass</label><small>kg</small></div><input id="robotMassKg" type="number" value="16" min="5" max="35" step="0.5"></div>
+        <div class="input-row"><div><label for="driveMotorRpm">Drive motor RPM</label><small>free speed</small></div><input id="driveMotorRpm" type="number" value="312" min="50" max="6000"></div>
+        <div class="input-row"><div><label for="driveWheelMm">Drive wheel diameter</label><small>mm</small></div><input id="driveWheelMm" type="number" value="96" min="40" max="160"></div>
+        <div class="input-row"><div><label for="tractionMu">Traction μ</label><small>foam tile grip</small></div><input id="tractionMu" type="number" value="0.85" min="0.2" max="1.4" step="0.05"></div>
+        <div class="input-row"><div><label for="batteryVoltage">Battery</label><small>volts</small></div><input id="batteryVoltage" type="number" value="12.6" min="8" max="14" step="0.1"></div>
+        <div class="input-row"><div><label for="shooterRpm">Shooter RPM</label><small>flywheel</small></div><input id="shooterRpm" type="number" value="2100" min="300" max="6000"></div>
+        <div class="input-row"><div><label for="shooterWheelMm">Shooter wheel</label><small>mm</small></div><input id="shooterWheelMm" type="number" value="90" min="30" max="150"></div>
+        <div class="input-row"><div><label for="shotAngleDeg">Shot angle</label><small>degrees</small></div><input id="shotAngleDeg" type="number" value="42" min="10" max="80"></div>
+      </section>
+      <section class="panel"><div class="label">Autonomous</div><h2>Script</h2><textarea id="autoEditor"># inches for SET_START, axes -1..1, seconds
+SET_START 24 120 0
+INTAKE_ON
+DRIVE 0.8 0 0 1.25
+DRIVE 0 0.8 0 0.8
+INTAKE_OFF
+PUSH_GATE 0.7
+TURN 90 0.7
+DRIVE 0.8 0 0 1.1
+SHOOT BLUE 0.9 42
+DRIVE -0.55 0 0 0.7
+TURN -90 0.7
+DRIVE 0.7 0 0 1.0
+SCORE_DEPOT</textarea><div class="actions"><button id="runAutoPanelButton" class="button small">Run Auto</button><button id="sampleAutoButton" class="button secondary small">Sample</button><button id="stopAutoButton" class="button secondary small">Stop</button></div></section>
+      <section class="panel"><div class="label">Score + Telemetry</div><h2>Match State</h2><div class="stats"><div class="stat"><strong id="simTimeStat">0.00</strong><span>sim time</span></div><div class="stat"><strong id="fpsStat">0</strong><span>FPS</span></div><div class="stat"><strong id="busVoltageStat">12.6V</strong><span>bus voltage</span></div><div class="stat"><strong id="speedStat">0.00</strong><span>robot m/s</span></div><div class="stat"><strong id="inventoryStat">0</strong><span>carried</span></div><div class="stat"><strong id="classifiedStat">0/9</strong><span>ramp slots</span></div><div class="stat"><strong id="overflowStat">0</strong><span>overflow</span></div><div class="stat"><strong id="scoreStat">0</strong><span>score</span></div><div class="stat"><strong id="rpStat">0</strong><span>RP</span></div><div class="stat"><strong id="motifStat">GPP</strong><span>motif</span></div></div><div class="input-row"><div><label for="eventTier">Event tier</label><small>Changes RP thresholds.</small></div><select id="eventTier"><option value="qualifier">Qualifier</option><option value="regional">Regional</option><option value="championship">Championship</option></select></div></section>
+      <section class="panel"><div class="label">Telemetry Log</div><div id="terminal" class="terminal"><div class="line">Simulator booted.</div></div><div class="actions"><button id="clearLogButton" class="button secondary small">Clear Log</button><button id="exportStateButton" class="button secondary small">Export State</button></div></section>
+    </aside>
+  </main>
+  <script src="js/app.js"></script>
+</body></html>
