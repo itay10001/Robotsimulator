@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FTC RouteForge Simulator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080914;
+      --panel: rgba(255,255,255,0.075);
+      --panel2: rgba(255,255,255,0.12);
+      --border: rgba(255,255,255,0.15);
+      --text: #ffffff;
+      --muted: rgba(255,255,255,0.66);
+      --accent: #67e8f9;
+      --purple: #c084fc;
+      --good: #86efac;
+      --warn: #fde047;
+      --bad: #fb7185;
+      --orange: #f59e0b;
+      --blue: #2563eb;
+      --red: #ef4444;
+    }
+
+    body.light {
+      --bg: #edf6ff;
+      --panel: rgba(15,23,42,0.065);
+      --panel2: rgba(15,23,42,0.11);
+      --border: rgba(15,23,42,0.16);
+      --text: #07111f;
+      --muted: rgba(15,23,42,0.68);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      min-height: 100vh;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+      background:
+        radial-gradient(circle at 8% 0%, rgba(103,232,249,0.18), transparent 30%),
+        radial-gradient(circle at 100% 15%, rgba(192,132,252,0.18), transparent 32%),
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+      background-size: auto, auto, 54px 54px, 54px 54px;
+    }
+
+    .container { width: min(1500px, calc(100% - 28px)); margin: 0 auto; }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      padding: 18px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      backdrop-filter: blur(18px);
+    }
+
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-icon {
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      box-shadow: 0 0 30px rgba(103,232,249,0.2);
+      font-size: 24px;
+    }
+    .logo strong { display: block; font-size: 19px; letter-spacing: -0.04em; }
+    .logo span { display: block; color: var(--muted); font-size: 12px; }
+
+    .nav-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+
+    .button {
+      border: 0;
+      border-radius: 15px;
+      padding: 12px 16px;
+      background: var(--accent);
+      color: #07111f;
+      font-weight: 900;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: 0.16s ease;
+      white-space: nowrap;
+    }
+
+    .button:hover { transform: translateY(-2px); filter: brightness(1.06); }
+    .button.secondary { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+    .button.danger { background: var(--bad); color: white; }
+    .button.small { padding: 9px 12px; border-radius: 12px; font-size: 13px; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 18px;
+      padding: 20px 0;
+    }
+
+    .card, .panel {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 26px;
+      backdrop-filter: blur(18px);
+      box-shadow: 0 24px 70px rgba(0,0,0,0.14);
+    }
+
+    .card { padding: 28px; }
+    .panel { padding: 18px; }
+
+    .pill {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--accent);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    h1 { font-size: clamp(42px, 5.4vw, 76px); line-height: 0.94; letter-spacing: -0.07em; }
+    h2 { font-size: 25px; letter-spacing: -0.04em; margin-bottom: 10px; }
+    h3 { font-size: 17px; margin-bottom: 8px; }
+    p, .hint { color: var(--muted); line-height: 1.65; }
+    .hero p { margin-top: 20px; font-size: 17px; }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
+    .label { color: var(--accent); font-size: 12px; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 9px; }
+
+    .guide-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 16px; }
+    .guide-item { border: 1px solid var(--border); background: rgba(255,255,255,0.06); border-radius: 18px; padding: 15px; }
+    body.light .guide-item { background: rgba(15,23,42,0.06); }
+    .guide-item strong { display: block; margin-bottom: 6px; }
+    .guide-item span { color: var(--muted); line-height: 1.45; }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 360px minmax(520px, 1fr) 420px;
+      gap: 18px;
+      align-items: start;
+      padding-bottom: 36px;
+    }
+
+    .form-grid { display: grid; gap: 12px; margin-top: 14px; }
+    .input-row {
+      display: grid;
+      grid-template-columns: 1fr 105px;
+      gap: 10px;
+      align-items: center;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.055);
+      border-radius: 17px;
+      padding: 12px;
+    }
+    body.light .input-row { background: rgba(15,23,42,0.055); }
+    label { display: block; font-weight: 900; margin-bottom: 4px; }
+    small { color: var(--muted); line-height: 1.35; }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.16);
+      color: var(--text);
+      border-radius: 13px;
+      padding: 10px 11px;
+      font: inherit;
+      outline: none;
+    }
+    body.light input, body.light select, body.light textarea { background: rgba(255,255,255,0.58); }
+    textarea { min-height: 245px; resize: vertical; font-family: Consolas, Monaco, monospace; font-size: 14px; line-height: 1.55; }
+
+    .field-toolbar { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .field-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      min-height: 520px;
+      border-radius: 22px;
+      border: 2px solid rgba(255,255,255,0.2);
+      overflow: hidden;
+      background: #555;
+      box-shadow: inset 0 0 30px rgba(0,0,0,0.34), 0 24px 60px rgba(0,0,0,0.18);
+      touch-action: none;
+    }
+
+    .field {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, transparent calc(16.666% - 2px), #f97316 calc(16.666% - 2px), #f97316 calc(16.666% + 2px), transparent calc(16.666% + 2px)),
+        linear-gradient(90deg, transparent calc(33.333% - 2px), #f97316 calc(33.333% - 2px), #f97316 calc(33.333% + 2px), transparent calc(33.333% + 2px)),
+        linear-gradient(90deg, transparent calc(50% - 2px), #f97316 calc(50% - 2px), #f97316 calc(50% + 2px), transparent calc(50% + 2px)),
+        linear-gradient(90deg, transparent calc(66.666% - 2px), #f97316 calc(66.666% - 2px), #f97316 calc(66.666% + 2px), transparent calc(66.666% + 2px)),
+        linear-gradient(90deg, transparent calc(83.333% - 2px), #f97316 calc(83.333% - 2px), #f97316 calc(83.333% + 2px), transparent calc(83.333% + 2px)),
+        linear-gradient(transparent calc(20% - 2px), #facc15 calc(20% - 2px), #facc15 calc(20% + 2px), transparent calc(20% + 2px)),
+        linear-gradient(transparent calc(40% - 2px), #facc15 calc(40% - 2px), #facc15 calc(40% + 2px), transparent calc(40% + 2px)),
+        linear-gradient(transparent calc(60% - 2px), #facc15 calc(60% - 2px), #facc15 calc(60% + 2px), transparent calc(60% + 2px)),
+        linear-gradient(transparent calc(80% - 2px), #facc15 calc(80% - 2px), #facc15 calc(80% + 2px), transparent calc(80% + 2px)),
+        #5b5b5b;
+    }
+
+    .field::before, .field::after {
+      content: "";
+      position: absolute;
+      top: 25%;
+      width: 34%;
+      height: 2px;
+      background: rgba(255,255,255,0.72);
+      transform-origin: center;
+    }
+    .field::before { left: 10%; transform: rotate(45deg); }
+    .field::after { right: 10%; transform: rotate(-45deg); }
+
+    .corner { position: absolute; width: 15%; height: 15%; top: 0; opacity: 0.95; }
+    .corner.blue { left: 0; background: linear-gradient(135deg, #1d4ed8 0 49%, transparent 50%); }
+    .corner.red { right: 0; background: linear-gradient(225deg, #ef4444 0 49%, transparent 50%); }
+    .goal { position: absolute; width: 12%; height: 12%; bottom: 18%; border: 4px solid; }
+    .goal.red { border-color: var(--red); left: 19%; border-right: 0; }
+    .goal.blue { border-color: var(--blue); right: 19%; border-left: 0; }
+
+    .pixel {
+      position: absolute;
+      width: 3.8%; height: 3.8%;
+      border-radius: 50%;
+      background: var(--purple);
+      box-shadow: 0 0 10px rgba(192,132,252,0.8);
+      transform: translate(-50%, -50%);
+    }
+    .pixel.green { background: #22c55e; box-shadow: 0 0 10px rgba(34,197,94,0.8); }
+
+    .path-layer, .waypoint-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+    .waypoint {
+      position: absolute;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2px solid white;
+      background: var(--warn);
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 15px rgba(253,224,71,0.85);
+    }
+    .waypoint span {
+      position: absolute;
+      left: 16px;
+      top: -10px;
+      color: white;
+      background: rgba(0,0,0,0.58);
+      padding: 3px 6px;
+      border-radius: 999px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .robot {
+      position: absolute;
+      width: 9.5%; height: 9.5%;
+      left: 50%; top: 50%;
+      translate: -50% -50%;
+      border-radius: 16%;
+      border: 3px solid var(--accent);
+      background: rgba(8,145,178,0.28);
+      box-shadow: 0 0 24px rgba(103,232,249,0.55);
+      display: grid;
+      place-items: center;
+      z-index: 7;
+      cursor: grab;
+      transform-origin: center;
+    }
+    .robot.running { animation: pulse 0.7s ease-in-out infinite; }
+    .robot-arrow {
+      width: 0; height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-bottom: 23px solid var(--accent);
+      transform: translateY(-2px);
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(103,232,249,0.45); }
+      50% { box-shadow: 0 0 42px rgba(103,232,249,0.85); }
+    }
+
+    .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 13px; }
+    .stat { border: 1px solid var(--border); background: rgba(255,255,255,0.055); border-radius: 17px; padding: 13px; }
+    body.light .stat { background: rgba(15,23,42,0.055); }
+    .stat strong { display: block; font-size: 24px; margin-bottom: 4px; letter-spacing: -0.04em; }
+    .stat span { color: var(--muted); font-size: 13px; line-height: 1.35; }
+
+    .meter { height: 12px; border-radius: 999px; background: rgba(255,255,255,0.12); overflow: hidden; margin-top: 10px; }
+    .meter-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--bad), var(--warn), var(--good)); transition: width 0.3s ease; }
+
+    .command-list { display: grid; gap: 9px; margin-top: 12px; }
+    .command-card, .mission, .gamepad-button {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.055);
+      color: var(--text);
+      border-radius: 15px;
+      padding: 12px;
+      cursor: pointer;
+      transition: 0.16s ease;
+    }
+    body.light .command-card, body.light .mission, body.light .gamepad-button { background: rgba(15,23,42,0.055); }
+    .command-card:hover, .mission:hover, .gamepad-button:hover { transform: translateX(4px); border-color: rgba(103,232,249,0.5); }
+    .command-card code { color: var(--accent); font-weight: 900; display: block; margin-bottom: 5px; }
+    .command-card small, .mission small { color: var(--muted); display: block; line-height: 1.4; }
+
+    .terminal {
+      min-height: 165px;
+      max-height: 260px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.3);
+      border-radius: 18px;
+      padding: 13px;
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      color: #dcfce7;
+      margin-top: 12px;
+    }
+    body.light .terminal { background: rgba(15,23,42,0.86); }
+    .line::before { content: "> "; color: var(--accent); }
+    .line.error { color: #fecdd3; }
+    .line.error::before { content: "! "; color: var(--bad); }
+
+    .teleop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+    .driver-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .driver-pad .blank { min-height: 38px; }
+    .gamepad-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .gamepad-button { font-weight: 900; text-align: center; }
+    .gamepad-button.a { color: var(--good); }
+    .gamepad-button.b { color: var(--bad); }
+    .gamepad-button.x { color: var(--accent); }
+    .gamepad-button.y { color: var(--warn); }
+
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .badge { border: 1px solid var(--border); border-radius: 999px; padding: 7px 10px; color: var(--muted); font-size: 12px; font-weight: 900; }
+    .badge.unlocked { background: var(--good); color: #052e16; border-color: transparent; }
+
+    table { width: 100%; border-collapse: collapse; min-width: 520px; }
+    th, td { padding: 11px; border-bottom: 1px solid var(--border); color: var(--muted); text-align: left; font-size: 14px; }
+    th { color: var(--text); background: rgba(255,255,255,0.055); }
+    .comparison { overflow-x: auto; margin-top: 12px; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      place-items: center;
+      padding: 18px;
+      background: rgba(0,0,0,0.58);
+      backdrop-filter: blur(12px);
+    }
+    .modal-backdrop.open { display: grid; }
+    .modal { width: min(720px, 100%); border: 1px solid var(--border); border-radius: 26px; background: var(--bg); padding: 24px; }
+    .modal ul { margin: 14px 0; padding-left: 18px; }
+    .modal li { color: var(--muted); line-height: 1.7; }
+    .kbd { display: inline-flex; border: 1px solid var(--border); background: var(--panel); border-radius: 8px; padding: 2px 7px; color: var(--text); font-family: Consolas, Monaco, monospace; font-size: 12px; }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 90;
+      max-width: min(430px, calc(100vw - 36px));
+      background: var(--text);
+      color: var(--bg);
+      border-radius: 18px;
+      padding: 14px 16px;
+      font-weight: 900;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.22);
+      transform: translateY(120px);
+      opacity: 0;
+      transition: 0.25s ease;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    @media (max-width: 1260px) {
+      .main-grid { grid-template-columns: 360px 1fr; }
+      .right-column { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+    }
+
+    @media (max-width: 930px) {
+      nav { flex-direction: column; align-items: flex-start; }
+      .hero, .main-grid, .right-column { grid-template-columns: 1fr; }
+      .field-wrap { min-height: unset; }
+    }
+
+    @media (max-width: 620px) {
+      .guide-grid, .stats-grid, .teleop-grid { grid-template-columns: 1fr; }
+      .input-row { grid-template-columns: 1fr; }
+      .card, .panel { padding: 16px; border-radius: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toast" id="toast">Ready</div>
+
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal">
+      <h2>Command Help</h2>
+      <p class="hint">This simulator uses simple FTC-style commands. It is not the real SDK, but it teaches the logic.</p>
+      <ul>
+        <li><span class="kbd">SET_START x y heading</span> sets robot pose on a 144in × 144in field.</li>
+        <li><span class="kbd">FORWARD inches power</span> drives in the current heading.</li>
+        <li><span class="kbd">BACK inches power</span> drives backward.</li>
+        <li><span class="kbd">STRAFE inches power</span> moves sideways.</li>
+        <li><span class="kbd">TURN degrees power</span> rotates the robot.</li>
+        <li><span class="kbd">INTAKE seconds power</span> uses intake RPM.</li>
+        <li><span class="kbd">SHOOT shots power</span> uses shooter RPM.</li>
+        <li><span class="kbd">LIFT inches power</span> uses lift RPM.</li>
+        <li><span class="kbd">MARK label</span> drops a waypoint.</li>
+        <li><span class="kbd">TELEOP_DRIVE f s t seconds power</span> simulates driver movement.</li>
+        <li><span class="kbd">BIND A INTAKE 1.0 0.8</span> maps a gamepad button.</li>
+      </ul>
+      <p class="hint">Keyboard: Space = run auto, R = reset, W/A/S/D = teleop drive, Q/E = turn, 1/2/3/4 = A/B/X/Y.</p>
+      <div class="actions"><button class="button" id="closeModalButton">Close</button></div>
+    </div>
+  </div>
+
+  <div class="container">
+    <nav>
+      <div class="logo">
+        <div class="logo-icon">⚙</div>
+        <div>
+          <strong>FTC RouteForge</strong>
+          <span>Auto + TeleOp Simulator</span>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button class="button small secondary" id="helpButton">Command Help</button>
+        <button class="button small secondary" id="themeButton">Light Mode</button>
+        <button class="button small" id="runTopButton">Run Auto</button>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="card">
+        <div class="pill">FTC-style robot simulator</div>
+        <h1>Code auto. Code TeleOp. Test the robot.</h1>
+        <p>Configure different RPMs for drive, intake, shooter, and lift motors. Then test autonomous routes and TeleOp button bindings on a 12 ft by 12 ft field.</p>
+        <div class="actions">
+          <button class="button" id="runHeroButton">Run Auto →</button>
+          <button class="button secondary" id="sampleButton">Load Auto Sample</button>
+          <button class="button secondary" id="teleopSampleButton">Load TeleOp Sample</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="label">What works now</div>
+        <h2>Built as a real first version, not fantasy physics.</h2>
+        <div class="guide-grid">
+          <div class="guide-item"><strong>Subsystem RPMs</strong><span>Drive, intake, shooter, and lift are separate.</span></div>
+          <div class="guide-item"><strong>Auto routes</strong><span>Write commands and watch the path.</span></div>
+          <div class="guide-item"><strong>TeleOp controls</strong><span>Use buttons, bindings, and keyboard driving.</span></div>
+          <div class="guide-item"><strong>Stats</strong><span>Time, distance, battery, wheel rotations, and efficiency.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <main class="main-grid">
+      <aside class="panel">
+        <div class="label">Robot Config</div>
+        <h2>Subsystem Motors</h2>
+        <p class="hint">Real robots do not use one RPM for everything. Different mechanisms need different motors.</p>
+
+        <div class="form-grid">
+          <div class="input-row"><div><label for="driveType">Drive type</label><small>Mecanum and swerve can strafe. Tank is penalized.</small></div><select id="driveType"><option value="mecanum">Mecanum</option><option value="tank">Tank</option><option value="swerve">Swerve</option></select></div>
+          <div class="input-row"><div><label for="driveMotorRpm">Drive motor RPM</label><small>Affects drivetrain speed.</small></div><input id="driveMotorRpm" type="number" value="312" min="30" max="6000"></div>
+          <div class="input-row"><div><label for="intakeMotorRpm">Intake motor RPM</label><small>Affects INTAKE commands.</small></div><input id="intakeMotorRpm" type="number" value="435" min="30" max="6000"></div>
+          <div class="input-row"><div><label for="shooterMotorRpm">Shooter motor RPM</label><small>Affects SHOOT commands.</small></div><input id="shooterMotorRpm" type="number" value="1150" min="30" max="6000"></div>
+          <div class="input-row"><div><label for="liftMotorRpm">Lift / arm RPM</label><small>Affects LIFT commands.</small></div><input id="liftMotorRpm" type="number" value="117" min="30" max="6000"></div>
+          <div class="input-row"><div><label for="wheelDiameter">Wheel diameter</label><small>Inches. Usually about 3.78 or 4.</small></div><input id="wheelDiameter" type="number" value="3.78" min="1" max="8" step="0.01"></div>
+          <div class="input-row"><div><label for="gearRatio">Drive gear ratio</label><small>Use 1 if direct output.</small></div><input id="gearRatio" type="number" value="1" min="0.1" max="10" step="0.1"></div>
+          <div class="input-row"><div><label for="robotWeight">Robot weight</label><small>Pounds.</small></div><input id="robotWeight" type="number" value="32" min="5" max="80"></div>
+          <div class="input-row"><div><label for="batteryVoltage">Battery voltage</label><small>Lower voltage reduces performance.</small></div><input id="batteryVoltage" type="number" value="12.6" min="8" max="14" step="0.1"></div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat"><strong id="maxSpeedStat">0</strong><span>Max drive speed, in/s</span></div>
+          <div class="stat"><strong id="wheelCircStat">0</strong><span>Wheel circumference, in</span></div>
+          <div class="stat"><strong id="intakeRpmStat">0</strong><span>Intake RPM</span></div>
+          <div class="stat"><strong id="shooterRpmStat">0</strong><span>Shooter RPM</span></div>
+        </div>
+      </aside>
+
+      <section class="panel">
+        <div class="field-toolbar">
+          <div><div class="label">FTC Field</div><h2>Live Route View</h2></div>
+          <div class="actions" style="margin-top:0"><button class="button small" id="runButton">Run Auto</button><button class="button small secondary" id="stepButton">Step</button><button class="button small secondary" id="resetButton">Reset</button></div>
+        </div>
+        <div class="field-wrap" id="fieldWrap">
+          <div class="field"></div>
+          <div class="corner blue"></div><div class="corner red"></div>
+          <div class="goal red"></div><div class="goal blue"></div>
+          <div class="pixel" style="left:13%;top:39%"></div><div class="pixel green" style="left:17%;top:39%"></div><div class="pixel" style="left:13%;top:50%"></div><div class="pixel" style="left:17%;top:50%"></div><div class="pixel" style="left:13%;top:61%"></div><div class="pixel green" style="left:17%;top:61%"></div>
+          <div class="pixel" style="left:83%;top:39%"></div><div class="pixel green" style="left:87%;top:39%"></div><div class="pixel" style="left:83%;top:50%"></div><div class="pixel" style="left:87%;top:50%"></div><div class="pixel green" style="left:83%;top:61%"></div><div class="pixel" style="left:87%;top:61%"></div>
+          <svg class="path-layer" viewBox="0 0 144 144" preserveAspectRatio="none"><polyline id="pathLine" points="" fill="none" stroke="#67e8f9" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>
+          <div class="waypoint-layer" id="waypointLayer"></div>
+          <div class="robot" id="robot"><div class="robot-arrow"></div></div>
+        </div>
+        <p class="hint" style="margin-top:12px">Drag the robot to set start position. The field is treated as 144in × 144in.</p>
+      </section>
+
+      <aside class="right-column">
+        <section class="panel">
+          <div class="label">Autonomous Code</div>
+          <h2>Route Script</h2>
+          <textarea id="codeEditor">SET_START 18 118 0
+MARK Start
+FORWARD 28 0.75
+INTAKE 1.2 0.8
+STRAFE 32 0.65
+TURN 90 0.5
+FORWARD 18 0.55
+SHOOT 2 0.85
+MARK Score
+WAIT 0.4
+TURN -90 0.55
+FORWARD 24 0.8
+MARK Park</textarea>
+          <div class="actions"><button class="button small" id="runCodeButton">Run Auto</button><button class="button small secondary" id="formatButton">Format</button><button class="button small secondary" id="copyButton">Copy</button><button class="button small danger" id="clearCodeButton">Clear</button></div>
+        </section>
+
+        <section class="panel">
+          <div class="label">TeleOp Code</div>
+          <h2>Driver Station</h2>
+          <textarea id="teleopEditor"># forward strafe turn seconds power
+TELEOP_DRIVE 1 0 0 1.0 0.75
+TELEOP_DRIVE 0 1 0 0.8 0.65
+TELEOP_DRIVE 0 0 1 0.5 0.55
+BIND A INTAKE 1.0 0.8
+BIND B SHOOT 1 0.85
+BIND X LIFT 8 0.6
+BIND Y MARK TeleOp Marker</textarea>
+          <div class="actions"><button class="button small" id="runTeleopButton">Run TeleOp Script</button><button class="button small secondary" id="resetTeleopButton">Reset TeleOp</button></div>
+
+          <div class="teleop-grid">
+            <div>
+              <h3>Live Drive</h3>
+              <div class="driver-pad">
+                <div class="blank"></div><button class="button small secondary" data-drive="forward">W</button><div class="blank"></div>
+                <button class="button small secondary" data-drive="left">A</button><button class="button small secondary" data-drive="back">S</button><button class="button small secondary" data-drive="right">D</button>
+                <button class="button small secondary" data-drive="turnLeft">Q</button><div class="blank"></div><button class="button small secondary" data-drive="turnRight">E</button>
+              </div>
+            </div>
+            <div>
+              <h3>Buttons</h3>
+              <div class="gamepad-buttons"><button class="gamepad-button a" data-gamepad="A">A</button><button class="gamepad-button b" data-gamepad="B">B</button><button class="gamepad-button x" data-gamepad="X">X</button><button class="gamepad-button y" data-gamepad="Y">Y</button></div>
+            </div>
+          </div>
+
+          <div class="input-row" style="margin-top:12px"><div><label for="teleopSpeedScale">TeleOp speed scale</label><small>Limits driver speed.</small></div><input id="teleopSpeedScale" type="number" value="0.75" min="0.1" max="1" step="0.05"></div>
+          <div class="stats-grid"><div class="stat"><strong id="teleopTimeStat">0.00s</strong><span>TeleOp time</span></div><div class="stat"><strong id="teleopActionStat">0</strong><span>Actions</span></div></div>
+        </section>
+
+        <section class="panel">
+          <div class="label">Performance</div>
+          <h2>Robot Stats</h2>
+          <div class="stats-grid">
+            <div class="stat"><strong id="timeStat">0.00s</strong><span>Auto time</span></div>
+            <div class="stat"><strong id="distanceStat">0in</strong><span>Drive distance</span></div>
+            <div class="stat"><strong id="turnStat">0°</strong><span>Total turning</span></div>
+            <div class="stat"><strong id="batteryStat">0%</strong><span>Battery used</span></div>
+            <div class="stat"><strong id="wheelRotStat">0</strong><span>Wheel rotations</span></div>
+            <div class="stat"><strong id="scoreStat">0</strong><span>Route score</span></div>
+          </div>
+          <div class="stat" style="margin-top:12px"><strong>Efficiency</strong><div class="meter"><div class="meter-fill" id="efficiencyMeter"></div></div><p class="hint" id="efficiencyText" style="margin-top:8px">Run the simulation to calculate route quality.</p></div>
+        </section>
+
+        <section class="panel">
+          <div class="label">Command Library</div>
+          <h2>Click to Insert</h2>
+          <div class="command-list">
+            <div class="command-card" data-target="auto" data-command="FORWARD 24 0.7"><code>FORWARD inches power</code><small>Move forward.</small></div>
+            <div class="command-card" data-target="auto" data-command="STRAFE 24 0.6"><code>STRAFE inches power</code><small>Move sideways.</small></div>
+            <div class="command-card" data-target="auto" data-command="TURN 90 0.5"><code>TURN degrees power</code><small>Rotate.</small></div>
+            <div class="command-card" data-target="auto" data-command="INTAKE 1.0 0.8"><code>INTAKE seconds power</code><small>Use intake RPM.</small></div>
+            <div class="command-card" data-target="auto" data-command="SHOOT 2 0.85"><code>SHOOT shots power</code><small>Use shooter RPM.</small></div>
+            <div class="command-card" data-target="auto" data-command="LIFT 12 0.6"><code>LIFT inches power</code><small>Use lift RPM.</small></div>
+            <div class="command-card" data-target="teleop" data-command="TELEOP_DRIVE 1 0 0 1.0 0.75"><code>TELEOP_DRIVE f s t sec p</code><small>Add TeleOp movement.</small></div>
+            <div class="command-card" data-target="teleop" data-command="BIND A INTAKE 1.0 0.8"><code>BIND A action</code><small>Map button A.</small></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="label">Missions</div>
+          <h2>Challenges</h2>
+          <div class="command-list">
+            <div class="mission" data-mission="park"><strong>Simple Park</strong><small>Quick movement and park.</small></div>
+            <div class="mission" data-mission="scorePark"><strong>Score + Park</strong><small>Intake, shoot, then park.</small></div>
+            <div class="mission" data-mission="fastCycle"><strong>Fast Cycle</strong><small>Longer, faster cycle path.</small></div>
+          </div>
+          <div class="badges"><span class="badge" id="badgeRun">First Run</span><span class="badge" id="badgeFast">Under 8s</span><span class="badge" id="badgeEfficient">Efficient</span><span class="badge" id="badgeMarkers">3 Markers</span></div>
+        </section>
+      </aside>
+    </main>
+
+    <section class="panel" style="margin-bottom:70px">
+      <div class="label">Telemetry</div>
+      <h2>Command Log + Saved Runs</h2>
+      <div class="terminal" id="terminal"><div class="line">Simulator booted. Ready.</div></div>
+      <div class="actions"><button class="button small secondary" id="clearLogButton">Clear Log</button><button class="button small secondary" id="saveRunButton">Save Run</button><button class="button small secondary" id="exportSummaryButton">Export Summary</button></div>
+      <div class="comparison"><table><thead><tr><th>Run</th><th>Time</th><th>Distance</th><th>Battery</th><th>Efficiency</th><th>Score</th></tr></thead><tbody id="runTable"><tr><td colspan="6">No saved runs yet.</td></tr></tbody></table></div>
+    </section>
+  </div>
+
+  <script>
+    const FIELD_SIZE = 144;
+    const DEG_TO_RAD = Math.PI / 180;
+
+    const body = document.body;
+    const toast = document.getElementById("toast");
+    const terminal = document.getElementById("terminal");
+    const codeEditor = document.getElementById("codeEditor");
+    const teleopEditor = document.getElementById("teleopEditor");
+    const robot = document.getElementById("robot");
+    const fieldWrap = document.getElementById("fieldWrap");
+    const pathLine = document.getElementById("pathLine");
+    const waypointLayer = document.getElementById("waypointLayer");
+    const modalBackdrop = document.getElementById("modalBackdrop");
+
+    const el = id => document.getElementById(id);
+
+    const inputs = {
+      driveType: el("driveType"),
+      driveMotorRpm: el("driveMotorRpm"),
+      intakeMotorRpm: el("intakeMotorRpm"),
+      shooterMotorRpm: el("shooterMotorRpm"),
+      liftMotorRpm: el("liftMotorRpm"),
+      wheelDiameter: el("wheelDiameter"),
+      gearRatio: el("gearRatio"),
+      robotWeight: el("robotWeight"),
+      batteryVoltage: el("batteryVoltage"),
+      teleopSpeedScale: el("teleopSpeedScale")
+    };
+
+    let pose = { x: 18, y: 118, heading: 0 };
+    let startPose = { ...pose };
+    let routePoints = [];
+    let lastResult = null;
+    let savedRuns = [];
+    let dragged = false;
+    let isRunning = false;
+    let teleopTime = 0;
+    let teleopActions = 0;
+    let stepIndex = 0;
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+    function round(v, d = 2) { return Number(v.toFixed(d)); }
+    function normalizeAngle(a) { let v = a % 360; if (v < 0) v += 360; return v; }
+    function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+    function escapeHtml(text) {
+      return String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove("show"), 2300);
+    }
+
+    function log(message, type = "normal") {
+      const line = document.createElement("div");
+      line.className = type === "error" ? "line error" : "line";
+      line.textContent = message;
+      terminal.appendChild(line);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function getConfig() {
+      const wheelDiameter = Number(inputs.wheelDiameter.value) || 4;
+      const driveMotorRpm = Number(inputs.driveMotorRpm.value) || 312;
+      const intakeMotorRpm = Number(inputs.intakeMotorRpm.value) || 435;
+      const shooterMotorRpm = Number(inputs.shooterMotorRpm.value) || 1150;
+      const liftMotorRpm = Number(inputs.liftMotorRpm.value) || 117;
+      const gearRatio = Number(inputs.gearRatio.value) || 1;
+      const robotWeight = Number(inputs.robotWeight.value) || 32;
+      const batteryVoltage = Number(inputs.batteryVoltage.value) || 12.6;
+      const wheelCirc = Math.PI * wheelDiameter;
+      const voltageFactor = clamp(batteryVoltage / 12.6, 0.6, 1.08);
+      const weightFactor = clamp(36 / robotWeight, 0.55, 1.35);
+      const rawSpeed = (driveMotorRpm / gearRatio) * wheelCirc / 60;
+      const maxSpeed = rawSpeed * 0.72 * voltageFactor * (0.8 + weightFactor * 0.2);
+      return { driveType: inputs.driveType.value, wheelDiameter, driveMotorRpm, intakeMotorRpm, shooterMotorRpm, liftMotorRpm, gearRatio, robotWeight, batteryVoltage, wheelCirc, maxSpeed };
+    }
+
+    function updateConfigStats() {
+      const c = getConfig();
+      el("maxSpeedStat").textContent = round(c.maxSpeed, 1);
+      el("wheelCircStat").textContent = round(c.wheelCirc, 2);
+      el("intakeRpmStat").textContent = c.intakeMotorRpm;
+      el("shooterRpmStat").textContent = c.shooterMotorRpm;
+    }
+
+    function setRobotPose(next, updateStart = false) {
+      pose = { x: clamp(next.x, 0, FIELD_SIZE), y: clamp(next.y, 0, FIELD_SIZE), heading: normalizeAngle(next.heading ?? pose.heading) };
+      if (updateStart) startPose = { ...pose };
+      robot.style.left = (pose.x / FIELD_SIZE * 100) + "%";
+      robot.style.top = (pose.y / FIELD_SIZE * 100) + "%";
+      robot.style.transform = "rotate(" + pose.heading + "deg)";
+    }
+
+    function clearPath() {
+      routePoints = [];
+      pathLine.setAttribute("points", "");
+      waypointLayer.innerHTML = "";
+      stepIndex = 0;
+    }
+
+    function drawPath(points) {
+      routePoints = points.map(p => ({ x: p.x, y: p.y }));
+      pathLine.setAttribute("points", routePoints.map(p => p.x + "," + p.y).join(" "));
+    }
+
+    function addWaypoint(x, y, label) {
+      const point = document.createElement("div");
+      point.className = "waypoint";
+      point.style.left = (x / FIELD_SIZE * 100) + "%";
+      point.style.top = (y / FIELD_SIZE * 100) + "%";
+      point.innerHTML = "<span>" + escapeHtml(label) + "</span>";
+      waypointLayer.appendChild(point);
+    }
+
+    function parseAutoCode() {
+      const errors = [];
+      const commands = [];
+      const allowed = ["SET_START", "FORWARD", "BACK", "STRAFE", "TURN", "WAIT", "MARK", "INTAKE", "SHOOT", "LIFT"];
+      codeEditor.value.split("\n").forEach((raw, i) => {
+        const line = raw.split("#")[0].trim();
+        if (!line) return;
+        const parts = line.split(/\s+/);
+        const command = parts[0].toUpperCase();
+        if (!allowed.includes(command)) errors.push("Line " + (i + 1) + ": unknown command " + command);
+        else commands.push({ command, args: parts.slice(1), line: i + 1 });
+      });
+      return { commands, errors };
+    }
+
+    function simulateAuto() {
+      const c = getConfig();
+      const parsed = parseAutoCode();
+      if (parsed.errors.length) {
+        parsed.errors.forEach(e => log(e, "error"));
+        showToast("Auto code has errors");
+        return null;
+      }
+
+      let sim = { ...startPose };
+      let points = [{ x: sim.x, y: sim.y }];
+      let events = [];
+      let totalDistance = 0, totalTurn = 0, totalTime = 0, markers = 0, shots = 0, boundaryHits = 0, mechanismBattery = 0, strafePenalty = 0;
+
+      for (const item of parsed.commands) {
+        const cmd = item.command;
+        const a = item.args;
+
+        if (cmd === "SET_START") {
+          sim = { x: clamp(Number(a[0]) || 0, 0, FIELD_SIZE), y: clamp(Number(a[1]) || 0, 0, FIELD_SIZE), heading: normalizeAngle(Number(a[2]) || 0) };
+          points = [{ x: sim.x, y: sim.y }];
+          events.push({ type: "start", pose: { ...sim } });
+          continue;
+        }
+
+        if (cmd === "MARK") {
+          markers++;
+          events.push({ type: "mark", x: sim.x, y: sim.y, label: a.join(" ") || "Marker" });
+          continue;
+        }
+
+        if (cmd === "WAIT") {
+          totalTime += Math.max(0, Number(a[0]) || 0);
+          continue;
+        }
+
+        if (cmd === "TURN") {
+          const degrees = Number(a[0]) || 0;
+          const power = clamp(Number(a[1]) || 0.5, 0.1, 1);
+          sim.heading = normalizeAngle(sim.heading + degrees);
+          totalTurn += Math.abs(degrees);
+          totalTime += Math.abs(degrees) / (145 * power);
+          continue;
+        }
+
+        if (cmd === "INTAKE") {
+          const seconds = Math.max(0, Number(a[0]) || 0);
+          const power = clamp(Number(a[1]) || 0.8, 0.1, 1);
+          const factor = clamp(c.intakeMotorRpm / 435, 0.25, 2.5);
+          totalTime += seconds / factor;
+          mechanismBattery += seconds * power * (c.intakeMotorRpm / 435) * 0.45;
+          continue;
+        }
+
+        if (cmd === "SHOOT") {
+          const count = Math.max(0, Number(a[0]) || 0);
+          const power = clamp(Number(a[1]) || 0.85, 0.1, 1);
+          const factor = clamp(c.shooterMotorRpm / 1150, 0.25, 2.8);
+          const time = (0.75 + count * 0.55) / factor;
+          totalTime += time;
+          shots += count;
+          mechanismBattery += time * power * (c.shooterMotorRpm / 1150) * 1.25;
+          continue;
+        }
+
+        if (cmd === "LIFT") {
+          const inches = Math.abs(Number(a[0]) || 0);
+          const power = clamp(Number(a[1]) || 0.6, 0.1, 1);
+          const liftSpeed = Math.max(1, c.liftMotorRpm * 0.018 * power);
+          totalTime += inches / liftSpeed;
+          mechanismBattery += inches * power * 0.08;
+          continue;
+        }
+
+        if (["FORWARD", "BACK", "STRAFE"].includes(cmd)) {
+          let inches = Number(a[0]) || 0;
+          const power = clamp(Number(a[1]) || 0.65, 0.1, 1);
+          if (cmd === "BACK") inches *= -1;
+          let angle = sim.heading;
+          let speedFactor = 1;
+
+          if (cmd === "STRAFE") {
+            angle += 90;
+            speedFactor = c.driveType === "tank" ? 0.18 : 0.72;
+            if (c.driveType === "tank") strafePenalty += 20;
+          }
+
+          const rad = angle * DEG_TO_RAD;
+          const nx = sim.x + Math.sin(rad) * inches;
+          const ny = sim.y - Math.cos(rad) * inches;
+          const cx = clamp(nx, 0, FIELD_SIZE);
+          const cy = clamp(ny, 0, FIELD_SIZE);
+          if (nx !== cx || ny !== cy) boundaryHits++;
+          sim.x = cx;
+          sim.y = cy;
+          totalDistance += Math.abs(inches);
+          totalTime += Math.abs(inches) / Math.max(1, c.maxSpeed * power * speedFactor);
+          points.push({ x: sim.x, y: sim.y });
+        }
+      }
+
+      const wheelRotations = totalDistance / c.wheelCirc;
+      const batteryUse = clamp(totalDistance * 0.018 + totalTurn * 0.006 + totalTime * 0.16 + c.robotWeight * 0.035 + mechanismBattery, 0, 100);
+      const direct = Math.hypot(sim.x - points[0].x, sim.y - points[0].y);
+      const waste = totalDistance <= 0 ? 0 : 1 - clamp(direct / totalDistance, 0, 1);
+      const efficiency = clamp(100 - waste * 28 - clamp(totalTime / 30, 0, 1) * 22 - boundaryHits * 10 - strafePenalty - batteryUse * 0.22 + markers * 2, 0, 100);
+      const score = Math.round(efficiency + markers * 8 + shots * 6 - boundaryHits * 15 - Math.max(0, totalTime - 30));
+
+      return { config: c, points, events, finalPose: sim, totalDistance, totalTurn, totalTime, markers, shots, boundaryHits, wheelRotations, batteryUse, efficiency, score };
+    }
+
+    function updateStats(result) {
+      el("timeStat").textContent = round(result.totalTime, 2) + "s";
+      el("distanceStat").textContent = round(result.totalDistance, 1) + "in";
+      el("turnStat").textContent = round(result.totalTurn, 0) + "°";
+      el("batteryStat").textContent = round(result.batteryUse, 1) + "%";
+      el("wheelRotStat").textContent = round(result.wheelRotations, 1);
+      el("scoreStat").textContent = result.score;
+      el("efficiencyMeter").style.width = round(result.efficiency, 0) + "%";
+      let text = "Needs work. Reduce wasted motion or slow mechanisms.";
+      if (result.efficiency >= 80) text = "Strong route. Short, fast, and clean.";
+      else if (result.efficiency >= 60) text = "Usable route. Could still be cleaner.";
+      else if (result.efficiency >= 40) text = "Messy route. Reduce turns, waits, or useless movement.";
+      if (result.boundaryHits) text += " Boundary hit detected.";
+      if (result.config.driveType === "tank" && codeEditor.value.toUpperCase().includes("STRAFE")) text += " Tank drive cannot strafe cleanly.";
+      el("efficiencyText").textContent = text;
+    }
+
+    async function runAuto(animated = true) {
+      if (isRunning) return;
+      const result = simulateAuto();
+      if (!result) return;
+      lastResult = result;
+      clearPath();
+      drawPath(result.points);
+      result.events.filter(e => e.type === "mark").forEach(e => addWaypoint(e.x, e.y, e.label));
+      updateStats(result);
+      updateAchievements(result);
+      log("Auto complete: " + round(result.totalTime, 2) + "s, " + round(result.totalDistance, 1) + "in, " + round(result.efficiency, 0) + "% efficiency.");
+      showToast("Auto simulated: " + round(result.efficiency, 0) + "% efficiency");
+
+      if (!animated) {
+        setRobotPose(result.finalPose);
+        return;
+      }
+
+      isRunning = true;
+      robot.classList.add("running");
+      for (const point of result.points) {
+        setRobotPose({ x: point.x, y: point.y, heading: pose.heading });
+        await wait(330);
+      }
+      setRobotPose(result.finalPose);
+      robot.classList.remove("running");
+      isRunning = false;
+    }
+
+    function stepAuto() {
+      const result = simulateAuto();
+      if (!result) return;
+      if (stepIndex >= result.points.length) { stepIndex = 0; clearPath(); }
+      const partial = result.points.slice(0, stepIndex + 1);
+      drawPath(partial);
+      const point = result.points[stepIndex];
+      setRobotPose({ x: point.x, y: point.y, heading: pose.heading });
+      log("Step " + stepIndex + ": " + round(point.x, 1) + ", " + round(point.y, 1));
+      stepIndex++;
+    }
+
+    function resetRobot() {
+      clearPath();
+      setRobotPose(startPose);
+      teleopTime = 0;
+      teleopActions = 0;
+      el("teleopTimeStat").textContent = "0.00s";
+      el("teleopActionStat").textContent = "0";
+      showToast("Robot reset");
+      log("Robot reset.");
+    }
+
+    function parseTeleopBindings() {
+      const bindings = {};
+      teleopEditor.value.split("\n").forEach(raw => {
+        const line = raw.split("#")[0].trim();
+        if (!line) return;
+        const parts = line.split(/\s+/);
+        if (parts[0].toUpperCase() !== "BIND") return;
+        const button = (parts[1] || "").toUpperCase();
+        const action = (parts[2] || "").toUpperCase();
+        if (["A", "B", "X", "Y"].includes(button)) bindings[button] = { action, args: parts.slice(3) };
+      });
+      return bindings;
+    }
+
+    function runTeleopButton(button) {
+      const c = getConfig();
+      const bind = parseTeleopBindings()[button];
+      if (!bind) { log("No binding for " + button, "error"); showToast("No binding for " + button); return; }
+      teleopActions++;
+      el("teleopActionStat").textContent = teleopActions;
+
+      if (bind.action === "INTAKE") {
+        const seconds = Math.max(0, Number(bind.args[0]) || 1);
+        const power = clamp(Number(bind.args[1]) || 0.8, 0.1, 1);
+        teleopTime += seconds / clamp(c.intakeMotorRpm / 435, 0.25, 2.5);
+        log("TeleOp " + button + ": INTAKE " + seconds + "s at " + power);
+      } else if (bind.action === "SHOOT") {
+        const shots = Math.max(0, Number(bind.args[0]) || 1);
+        const power = clamp(Number(bind.args[1]) || 0.85, 0.1, 1);
+        teleopTime += (0.75 + shots * 0.55) / clamp(c.shooterMotorRpm / 1150, 0.25, 2.8);
+        log("TeleOp " + button + ": SHOOT " + shots + " at " + power);
+      } else if (bind.action === "LIFT") {
+        const inches = Math.abs(Number(bind.args[0]) || 6);
+        const power = clamp(Number(bind.args[1]) || 0.6, 0.1, 1);
+        teleopTime += inches / Math.max(1, c.liftMotorRpm * 0.018 * power);
+        log("TeleOp " + button + ": LIFT " + inches + "in at " + power);
+      } else if (bind.action === "MARK") {
+        addWaypoint(pose.x, pose.y, bind.args.join(" ") || button);
+        log("TeleOp " + button + ": marker dropped.");
+      } else {
+        log("Unknown TeleOp binding action: " + bind.action, "error");
+      }
+
+      el("teleopTimeStat").textContent = round(teleopTime, 2) + "s";
+      showToast("TeleOp " + button + " executed");
+    }
+
+    function teleopDrive(forward, strafe, turn, seconds = 0.35, power = null) {
+      const c = getConfig();
+      const scale = clamp(Number(inputs.teleopSpeedScale.value) || 0.75, 0.1, 1);
+      const p = clamp(power ?? scale, 0.1, 1);
+      const distance = c.maxSpeed * p * seconds;
+      const fRad = pose.heading * DEG_TO_RAD;
+      const sRad = (pose.heading + 90) * DEG_TO_RAD;
+      const dx = Math.sin(fRad) * forward * distance + Math.sin(sRad) * strafe * distance;
+      const dy = -Math.cos(fRad) * forward * distance - Math.cos(sRad) * strafe * distance;
+      const next = { x: pose.x + dx, y: pose.y + dy, heading: normalizeAngle(pose.heading + turn * 120 * seconds * p) };
+      if (!routePoints.length) routePoints.push({ x: pose.x, y: pose.y });
+      routePoints.push({ x: clamp(next.x, 0, FIELD_SIZE), y: clamp(next.y, 0, FIELD_SIZE) });
+      drawPath(routePoints);
+      setRobotPose(next);
+      teleopTime += seconds;
+      el("teleopTimeStat").textContent = round(teleopTime, 2) + "s";
+      log("TeleOp drive f=" + forward + " s=" + strafe + " turn=" + turn);
+    }
+
+    function runTeleopScript() {
+      clearPath();
+      routePoints = [{ x: pose.x, y: pose.y }];
+      teleopTime = 0;
+      teleopActions = 0;
+      el("teleopActionStat").textContent = "0";
+      teleopEditor.value.split("\n").forEach(raw => {
+        const line = raw.split("#")[0].trim();
+        if (!line) return;
+        const p = line.split(/\s+/);
+        if (p[0].toUpperCase() === "TELEOP_DRIVE") {
+          teleopDrive(Number(p[1]) || 0, Number(p[2]) || 0, Number(p[3]) || 0, Math.max(0, Number(p[4]) || 0.4), clamp(Number(p[5]) || Number(inputs.teleopSpeedScale.value) || 0.75, 0.1, 1));
+        }
+      });
+      showToast("TeleOp script simulated");
+    }
+
+    function formatAuto() {
+      codeEditor.value = codeEditor.value.split("\n").map(x => x.trim()).filter(Boolean).map(x => x.replace(/\s+/g, " ").replace(/^\w+/, m => m.toUpperCase())).join("\n");
+      showToast("Auto code formatted");
+    }
+
+    function loadAutoSample(type = "scorePark") {
+      if (type === "park") codeEditor.value = "SET_START 18 118 0\nFORWARD 34 0.8\nINTAKE 0.8 0.7\nSTRAFE 28 0.7\nMARK Park";
+      else if (type === "fastCycle") codeEditor.value = "SET_START 18 118 0\nMARK Start\nFORWARD 42 0.95\nINTAKE 0.9 0.9\nSTRAFE 42 0.85\nTURN 90 0.7\nFORWARD 28 0.9\nSHOOT 3 0.9\nMARK Cycle\nBACK 22 0.85\nTURN -90 0.7\nFORWARD 30 0.95\nMARK Park";
+      else codeEditor.value = "SET_START 18 118 0\nMARK Start\nFORWARD 28 0.75\nINTAKE 1.2 0.8\nSTRAFE 32 0.65\nTURN 90 0.5\nFORWARD 18 0.55\nSHOOT 2 0.85\nMARK Score\nWAIT 0.4\nTURN -90 0.55\nFORWARD 24 0.8\nMARK Park";
+      showToast("Auto sample loaded");
+    }
+
+    function loadTeleopSample() {
+      teleopEditor.value = "# forward strafe turn seconds power\nTELEOP_DRIVE 1 0 0 1.0 0.75\nTELEOP_DRIVE 0 1 0 0.8 0.65\nTELEOP_DRIVE 0 0 1 0.5 0.55\nBIND A INTAKE 1.0 0.8\nBIND B SHOOT 1 0.85\nBIND X LIFT 8 0.6\nBIND Y MARK TeleOp Marker";
+      showToast("TeleOp sample loaded");
+    }
+
+    function appendCommand(target, command) {
+      const editor = target === "teleop" ? teleopEditor : codeEditor;
+      editor.value = editor.value.trimEnd() + (editor.value.trim() ? "\n" : "") + command;
+      editor.focus();
+      showToast("Command inserted");
+    }
+
+    function updateAchievements(result) {
+      el("badgeRun").classList.add("unlocked");
+      if (result.totalTime < 8) el("badgeFast").classList.add("unlocked");
+      if (result.efficiency >= 75) el("badgeEfficient").classList.add("unlocked");
+      if (result.markers >= 3) el("badgeMarkers").classList.add("unlocked");
+    }
+
+    function saveRun() {
+      if (!lastResult) { showToast("Run auto first"); return; }
+      savedRuns.push({ ...lastResult, name: "Run " + (savedRuns.length + 1) });
+      const table = el("runTable");
+      table.innerHTML = "";
+      savedRuns.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = "<td>" + r.name + "</td><td>" + round(r.totalTime,2) + "s</td><td>" + round(r.totalDistance,1) + "in</td><td>" + round(r.batteryUse,1) + "%</td><td>" + round(r.efficiency,0) + "%</td><td>" + r.score + "</td>";
+        table.appendChild(tr);
+      });
+      showToast("Run saved");
+    }
+
+    function exportSummary() {
+      if (!lastResult) { showToast("Run auto first"); return; }
+      const r = lastResult;
+      const summary = "Drive RPM: " + r.config.driveMotorRpm + " | Intake RPM: " + r.config.intakeMotorRpm + " | Shooter RPM: " + r.config.shooterMotorRpm + " | Lift RPM: " + r.config.liftMotorRpm + " | Time: " + round(r.totalTime,2) + "s | Distance: " + round(r.totalDistance,1) + "in | Efficiency: " + round(r.efficiency,0) + "% | Score: " + r.score;
+      navigator.clipboard?.writeText(summary);
+      log(summary);
+      showToast("Summary copied/logged");
+    }
+
+    function nudgeRobot(dx, dy) {
+      setRobotPose({ x: startPose.x + dx, y: startPose.y + dy, heading: startPose.heading }, true);
+      log("Start nudged to " + round(startPose.x,1) + ", " + round(startPose.y,1));
+    }
+
+    el("themeButton").addEventListener("click", () => {
+      const light = body.classList.toggle("light");
+      el("themeButton").textContent = light ? "Dark Mode" : "Light Mode";
+      showToast(light ? "Light mode" : "Dark mode");
+    });
+    el("helpButton").addEventListener("click", () => modalBackdrop.classList.add("open"));
+    el("closeModalButton").addEventListener("click", () => modalBackdrop.classList.remove("open"));
+    modalBackdrop.addEventListener("click", e => { if (e.target === modalBackdrop) modalBackdrop.classList.remove("open"); });
+
+    el("runButton").addEventListener("click", () => runAuto(true));
+    el("runTopButton").addEventListener("click", () => runAuto(true));
+    el("runHeroButton").addEventListener("click", () => runAuto(true));
+    el("runCodeButton").addEventListener("click", () => runAuto(true));
+    el("stepButton").addEventListener("click", stepAuto);
+    el("resetButton").addEventListener("click", resetRobot);
+    el("sampleButton").addEventListener("click", () => loadAutoSample("scorePark"));
+    el("teleopSampleButton").addEventListener("click", loadTeleopSample);
+    el("runTeleopButton").addEventListener("click", runTeleopScript);
+    el("resetTeleopButton").addEventListener("click", resetRobot);
+    el("formatButton").addEventListener("click", formatAuto);
+    el("copyButton").addEventListener("click", () => { navigator.clipboard?.writeText(codeEditor.value); showToast("Code copied"); });
+    el("clearCodeButton").addEventListener("click", () => { codeEditor.value = ""; showToast("Auto code cleared"); });
+    el("clearLogButton").addEventListener("click", () => { terminal.innerHTML = '<div class="line">Log cleared.</div>'; });
+    el("saveRunButton").addEventListener("click", saveRun);
+    el("exportSummaryButton").addEventListener("click", exportSummary);
+
+    document.querySelectorAll(".command-card").forEach(card => card.addEventListener("click", () => appendCommand(card.dataset.target, card.dataset.command)));
+    document.querySelectorAll(".mission").forEach(m => m.addEventListener("click", () => loadAutoSample(m.dataset.mission)));
+    document.querySelectorAll("[data-gamepad]").forEach(b => b.addEventListener("click", () => runTeleopButton(b.dataset.gamepad)));
+    document.querySelectorAll("[data-drive]").forEach(b => b.addEventListener("click", () => {
+      const d = b.dataset.drive;
+      if (d === "forward") teleopDrive(1,0,0);
+      if (d === "back") teleopDrive(-1,0,0);
+      if (d === "left") teleopDrive(0,-1,0);
+      if (d === "right") teleopDrive(0,1,0);
+      if (d === "turnLeft") teleopDrive(0,0,-1);
+      if (d === "turnRight") teleopDrive(0,0,1);
+    }));
+    Object.values(inputs).forEach(input => input.addEventListener("input", updateConfigStats));
+
+    fieldWrap.addEventListener("pointerdown", e => {
+      if (!e.target.closest("#robot")) return;
+      dragged = true;
+      robot.setPointerCapture?.(e.pointerId);
+    });
+    fieldWrap.addEventListener("pointermove", e => {
+      if (!dragged) return;
+      const rect = fieldWrap.getBoundingClientRect();
+      const x = clamp((e.clientX - rect.left) / rect.width * FIELD_SIZE, 0, FIELD_SIZE);
+      const y = clamp((e.clientY - rect.top) / rect.height * FIELD_SIZE, 0, FIELD_SIZE);
+      setRobotPose({ x, y, heading: startPose.heading }, true);
+    });
+    window.addEventListener("pointerup", () => {
+      if (dragged) log("Start dragged to " + round(startPose.x,1) + ", " + round(startPose.y,1));
+      dragged = false;
+    });
+
+    window.addEventListener("keydown", e => {
+      const tag = document.activeElement.tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") return;
+      if (e.code === "Space") { e.preventDefault(); runAuto(true); }
+      if (e.key.toLowerCase() === "r") resetRobot();
+      if (e.key === "ArrowUp") nudgeRobot(0, -2);
+      if (e.key === "ArrowDown") nudgeRobot(0, 2);
+      if (e.key === "ArrowLeft") nudgeRobot(-2, 0);
+      if (e.key === "ArrowRight") nudgeRobot(2, 0);
+      if (e.key.toLowerCase() === "w") teleopDrive(1,0,0);
+      if (e.key.toLowerCase() === "s") teleopDrive(-1,0,0);
+      if (e.key.toLowerCase() === "a") teleopDrive(0,-1,0);
+      if (e.key.toLowerCase() === "d") teleopDrive(0,1,0);
+      if (e.key.toLowerCase() === "q") teleopDrive(0,0,-1);
+      if (e.key.toLowerCase() === "e") teleopDrive(0,0,1);
+      if (["1","2","3","4"].includes(e.key)) runTeleopButton({"1":"A","2":"B","3":"X","4":"Y"}[e.key]);
+    });
+
+    setRobotPose(startPose, true);
+    updateConfigStats();
+    runAuto(false);
+  </script>
+</body>
+</html>
