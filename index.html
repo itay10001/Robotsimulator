@@ -434,7 +434,7 @@
         <li><span class="kbd">TELEOP_DRIVE f s t seconds power</span> simulates driver movement.</li>
         <li><span class="kbd">BIND A INTAKE 1.0 0.8</span> maps a gamepad button.</li>
       </ul>
-      <p class="hint">Keyboard: Space = run auto, R = reset, W/A/S/D = teleop drive, Q/E = turn, 1/2/3/4 = A/B/X/Y.</p>
+      <p class="hint">Keyboard: W/A/S/D = drive, Q/E = turn, Space = run auto, R = reset, 1/2/3/4 = A/B/X/Y. Turn on Driver Mode if you want WASD to control the robot even after clicking around the page.</p>
       <div class="actions"><button class="button" id="closeModalButton">Close</button></div>
     </div>
   </div>
@@ -451,6 +451,7 @@
       <div class="nav-actions">
         <button class="button small secondary" id="helpButton">Command Help</button>
         <button class="button small secondary" id="themeButton">Light Mode</button>
+        <button class="button small secondary" id="driverModeButton">Driver Mode: Off</button>
         <button class="button small" id="runTopButton">Run Auto</button>
       </div>
     </nav>
@@ -459,7 +460,7 @@
       <div class="card">
         <div class="pill">FTC-style robot simulator</div>
         <h1>Code auto. Code TeleOp. Test the robot.</h1>
-        <p>Configure different RPMs for drive, intake, shooter, and lift motors. Then test autonomous routes and TeleOp button bindings on a 12 ft by 12 ft field.</p>
+        <p>Configure different RPMs for drive, intake, shooter, and lift motors. Then test autonomous routes and TeleOp button bindings on a 12 ft by 12 ft field. Movement uses WASD like a normal game: W/S drive forward and back, A/D strafe, Q/E turn.</p>
         <div class="actions">
           <button class="button" id="runHeroButton">Run Auto →</button>
           <button class="button secondary" id="sampleButton">Load Auto Sample</button>
@@ -557,7 +558,8 @@ BIND Y MARK TeleOp Marker</textarea>
 
           <div class="teleop-grid">
             <div>
-              <h3>Live Drive</h3>
+              <h3>Live Drive — WASD</h3>
+              <p class="hint" style="margin-bottom:10px">W/S = forward/back, A/D = strafe, Q/E = turn. Click Driver Mode at the top for keyboard control.</p>
               <div class="driver-pad">
                 <div class="blank"></div><button class="button small secondary" data-drive="forward">W</button><div class="blank"></div>
                 <button class="button small secondary" data-drive="left">A</button><button class="button small secondary" data-drive="back">S</button><button class="button small secondary" data-drive="right">D</button>
@@ -665,6 +667,7 @@ BIND Y MARK TeleOp Marker</textarea>
     let teleopTime = 0;
     let teleopActions = 0;
     let stepIndex = 0;
+    let driverMode = false;
 
     function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
     function round(v, d = 2) { return Number(v.toFixed(d)); }
@@ -1084,6 +1087,14 @@ BIND Y MARK TeleOp Marker</textarea>
       el("themeButton").textContent = light ? "Dark Mode" : "Light Mode";
       showToast(light ? "Light mode" : "Dark mode");
     });
+
+    el("driverModeButton").addEventListener("click", () => {
+      driverMode = !driverMode;
+      el("driverModeButton").textContent = driverMode ? "Driver Mode: On" : "Driver Mode: Off";
+      document.activeElement?.blur?.();
+      showToast(driverMode ? "WASD driver mode enabled" : "WASD driver mode disabled");
+      log(driverMode ? "Driver Mode enabled. WASD now controls TeleOp movement." : "Driver Mode disabled.");
+    });
     el("helpButton").addEventListener("click", () => modalBackdrop.classList.add("open"));
     el("closeModalButton").addEventListener("click", () => modalBackdrop.classList.remove("open"));
     modalBackdrop.addEventListener("click", e => { if (e.target === modalBackdrop) modalBackdrop.classList.remove("open"); });
@@ -1138,7 +1149,10 @@ BIND Y MARK TeleOp Marker</textarea>
 
     window.addEventListener("keydown", e => {
       const tag = document.activeElement.tagName;
-      if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") return;
+      const movementKeys = ["w", "a", "s", "d", "q", "e", "r", "1", "2", "3", "4"];
+      const isTyping = tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT";
+      if (isTyping && !(driverMode && movementKeys.includes(e.key.toLowerCase()))) return;
+      if (driverMode && movementKeys.includes(e.key.toLowerCase())) e.preventDefault();
       if (e.code === "Space") { e.preventDefault(); runAuto(true); }
       if (e.key.toLowerCase() === "r") resetRobot();
       if (e.key === "ArrowUp") nudgeRobot(0, -2);
