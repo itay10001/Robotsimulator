@@ -227,7 +227,8 @@
       width: 34%;
       height: 2px;
       background: rgba(255,255,255,0.72);
-      transform-origin: center;
+      transform-origin: 50% 50%;
+      transition: left 0.14s linear, top 0.14s linear, transform 0.14s linear;
     }
     .field::before { left: 10%; transform: rotate(45deg); }
     .field::after { right: 10%; transform: rotate(-45deg); }
@@ -275,7 +276,7 @@
       position: absolute;
       width: 9.5%; height: 9.5%;
       left: 50%; top: 50%;
-      translate: -50% -50%;
+      transform: translate(-50%, -50%) rotate(0deg);
       border-radius: 16%;
       border: 3px solid var(--accent);
       background: rgba(8,145,178,0.28);
@@ -722,7 +723,55 @@ BIND Y MARK TeleOp Marker</textarea>
       if (updateStart) startPose = { ...pose };
       robot.style.left = (pose.x / FIELD_SIZE * 100) + "%";
       robot.style.top = (pose.y / FIELD_SIZE * 100) + "%";
-      robot.style.transform = "rotate(" + pose.heading + "deg)";
+      robot.style.transform = "translate(-50%, -50%) rotate(" + pose.heading + "deg)";
+    }
+
+    function setRobotTransition(enabled) {
+      robot.style.transition = enabled ? "left 0.14s linear, top 0.14s linear, transform 0.14s linear" : "none";
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function shortestAngleLerp(a, b, t) {
+      let diff = ((b - a + 540) % 360) - 180;
+      return normalizeAngle(a + diff * t);
+    }
+
+    function estimateHeadingBetween(a, b, fallbackHeading) {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      if (Math.hypot(dx, dy) < 0.001) return fallbackHeading;
+      return normalizeAngle(Math.atan2(dx, -dy) / DEG_TO_RAD);
+    }
+
+    function animateRobotTo(targetPose, durationMs) {
+      return new Promise(resolve => {
+        const start = { ...pose };
+        const duration = Math.max(90, durationMs);
+        const started = performance.now();
+        setRobotTransition(false);
+
+        function frame(now) {
+          const t = clamp((now - started) / duration, 0, 1);
+          const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+          setRobotPose({
+            x: lerp(start.x, targetPose.x, eased),
+            y: lerp(start.y, targetPose.y, eased),
+            heading: shortestAngleLerp(start.heading, targetPose.heading ?? start.heading, eased)
+          });
+
+          if (t < 1) requestAnimationFrame(frame);
+          else {
+            setRobotPose(targetPose);
+            setRobotTransition(true);
+            resolve();
+          }
+        }
+
+        requestAnimationFrame(frame);
+      });
     }
 
     function clearPath() {
@@ -909,11 +958,15 @@ BIND Y MARK TeleOp Marker</textarea>
 
       isRunning = true;
       robot.classList.add("running");
-      for (const point of result.points) {
-        setRobotPose({ x: point.x, y: point.y, heading: pose.heading });
-        await wait(330);
+      for (let i = 1; i < result.points.length; i++) {
+        const previous = result.points[i - 1];
+        const point = result.points[i];
+        const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
+        const segmentHeading = estimateHeadingBetween(previous, point, pose.heading);
+        const duration = (distance / Math.max(1, result.config.maxSpeed * 0.75)) * 1000;
+        await animateRobotTo({ x: point.x, y: point.y, heading: segmentHeading }, duration);
       }
-      setRobotPose(result.finalPose);
+      await animateRobotTo(result.finalPose, 260);
       robot.classList.remove("running");
       isRunning = false;
     }
@@ -988,7 +1041,7 @@ BIND Y MARK TeleOp Marker</textarea>
       showToast("TeleOp " + button + " executed");
     }
 
-    function teleopDrive(forward, strafe, turn, seconds = 0.35, power = null) {
+    function teleopDrive(forward, strafe, turn, seconds = 0.22, power = null) {
       const c = getConfig();
       const scale = clamp(Number(inputs.teleopSpeedScale.value) || 0.75, 0.1, 1);
       const p = clamp(power ?? scale, 0.1, 1);
